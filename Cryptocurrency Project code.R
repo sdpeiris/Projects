@@ -2,8 +2,8 @@
 rm(list=ls())
 options("scipen"=99999, digits=3)
 
-#setwd("C:/Users/Senal Peiris/OneDrive/Desktop/6010 project")
-setwd("C:/Users/shane/OneDrive/UC Work files/Econ Data Analysis/Project")
+setwd("C:/Users/Senal Peiris/OneDrive/Desktop/6010 project")
+
 
 #install.packages("AER") 
 #install.packages("tidyverse")
