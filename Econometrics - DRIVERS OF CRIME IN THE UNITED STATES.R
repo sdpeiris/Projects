@@ -5,7 +5,7 @@ cat("\014")
 #Scientific Notation
 options("scipen"=99999, digits=3)
 
-setwd("C:/Users/shane/OneDrive/UC Work files/Econometrics/Final Project")
+setwd("C:/Users/Senal Peiris/OneDrive/Desktop/Econometrics project")
 
 #install.packages("vtable")
 #install.packages("lm.beta")
