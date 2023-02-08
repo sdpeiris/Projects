@@ -4,8 +4,7 @@ rm(list=ls())
 set.seed(77)
 
 # Set Working directories
-setwd("C:/Users/shane/OneDrive/UC Work files/Bayesean Econometrics/Project")
-#setwd("C:/Users/Senal Peiris/OneDrive/Desktop/Bayesian project")
+setwd("C:/Users/Senal Peiris/OneDrive/Desktop/Bayesian project")
 
 ##Install required packages
 #install.packages("readxl")
