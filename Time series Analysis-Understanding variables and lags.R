@@ -61,7 +61,6 @@ str(DB)
 
 attach(DB)
 
-#########part a)################
 #using intord function to check the order of integration
 par(mar = c(2, 2, 2, 2))
 intord(House_price) #I(1) order of integration
@@ -89,7 +88,7 @@ dHP <- diff(dfts[,5])
 seas = seasonaldummy(dHP) # set dummy for the shortest time series
 
 
-###############part b)#######################
+###############Regressions#######################
 #starting analysis with 3 years worth of lags
 r1 <- dynlm(dHP~L(dHP,1:12)+L(dUNP,0:12)+L(dIT,0:12)+seas)
 summary(r1)
@@ -138,7 +137,7 @@ AIC(r5)
 BIC(r5)
 
 anova(r4, r5, test="F")
-#We reject null hence there seasonality dummies are significant and should be kept in the model
+#We reject null hence the seasonality dummies are significant and should be kept in the model
 #hence the best model for us is r4
 
 #Check serial correlation
@@ -158,7 +157,7 @@ summary(r4)
 AIC(r4)
 BIC(r4)
 
-####testing is unemployment granger causes houseprices #######
+####testing if unemployment granger causes houseprices #######
 r6 <- dynlm(dHP~L(dHP,1:5)+seas, start = c(1965,3))
 summary(r6)
 AIC(r6)
