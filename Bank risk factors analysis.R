@@ -71,7 +71,7 @@ EMP<- dfts[,7]
 FED <- dfts[,8]
 
 
-
+##taking  first differences of the variables of interest
 dLLR <- diff(LLR)
 dNIM <- diff(NIM)
 dNASDAQ <- diff(NASDAQ)
@@ -102,7 +102,7 @@ c1 <- dynlm(CC~LLR+NIM+NASDAQ+FED) # Very GOOD
 dy <- cbind(dCC,dLLR,dNIM,dNASDAQ,dFED) # variables I(0)
 ly <- cbind(CC,LLR,NIM,NASDAQ,FED) # variables I(0)
 
-
+###using varselect to determing the optimum number of lags to be used
 VARselect(ly, lag.max=12, type="const")
 
 summary(c1)
@@ -118,10 +118,12 @@ ec <- embed(ecm,2)
 ecm1 <- ec[,2]
 
 
-# VECM with EG
+# VECM with Engle-Granger
 var5 <- VAR(dy, p=2, type="cons",exogen=ecm1,season=4)
 summary(var5)
 
+
+####next i will check all the variables to see if there is any serial correlation in the residuals
 # BoX-Ljung Q Statistic for Consumer Confidence
 resi = var5$varresult$dCC$residuals
 b = Box.test(resi,lag = 20, type="Ljung-Box")
