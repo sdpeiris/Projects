@@ -1,0 +1,385 @@
+##clearing environment
+rm(list=ls())
+cat("\f") 
+
+setwd("C:/Users/Senal Peiris/OneDrive/Desktop/Masters Studies/Spring Semester/8011- Time series econometrics/Final Project")
+
+library(dplyr)
+library(urca)
+library(vars)
+library(dynlm)
+library(tsDyn)
+library(quantmod)
+library(tseries)
+library(urca)
+library(forecast)
+
+
+CPI <- read.csv("CPI.csv")
+M2 <- read.csv("M2.csv")
+OIL <- read.csv("OIL.csv")
+STOCK <- read.csv("STOCK.csv")
+UNEMP <- read.csv("UNEMP.csv")
+
+dta <- CPI
+dta <- inner_join(dta,STOCK)
+dta <- inner_join(dta,UNEMP)
+dta <- inner_join(dta,M2)
+dta <- inner_join(dta,OIL)
+
+colnames(dta) <- c("DATE","CPI","NASDAQ","UNEMP","M2","OIL")
+
+summary(dta)
+source(file="intord.R")
+par(mar=c(2,2,2,2))
+
+intord(dta$CPI)
+intord(dta$NASDAQ)
+intord(dta$UNEMP)
+intord(dta$M2)
+intord(dta$OIL)
+
+dfts <- ts(dta, start = c(1990, 1), frequency = 12)
+
+plot(dfts[,2], main="CPI from 1990 to 2019",type ="l", ylab="CPI",xlab="Year", col="Red")
+plot(dfts[,3], main="NASDAQ from 1990 to 2019",type ="l", ylab="$ Index",xlab="Year", col="Red")
+plot(dfts[,4], main="Unemployment from 1990 to 2019",type ="l", ylab="No. (Thousands)",xlab="Year", col="Red")
+plot(dfts[,5], main="M2 Money Supply from 1990 to 2019",type ="l", ylab="$ Billions",xlab="Year", col="Red")
+plot(dfts[,6], main="Global Oil price from 1990 to 2019",type ="l", ylab="$ Per Barrel",xlab="Year", col="Red")
+
+
+
+LCPI <- log(dfts[,2])
+LNASDAQ <- log(dfts[,3])
+LUNEMP <- log(dfts[,4])
+LM2 <- log(dfts[,5])
+LOIL <- log(dfts[,6])
+#logs of all variables have been taken
+
+par(mar=c(2,2,2,2))
+intord(LCPI)
+intord(LNASDAQ)
+intord(LUNEMP) #Unit root as per URDF
+intord(LM2)#Unit root as per URDF
+intord(LOIL)#Unit root as per URDF
+
+urLUNEMP=ur.df(LUNEMP,type="trend",selectlags="BIC") # trend stationary variable
+summary(urLUNEMP)
+
+#variables are still I(1) after log , hence issue of stationarity is not yet solved
+
+DLCPI <- diff(LCPI)
+DLNASDAQ <- diff(LNASDAQ)
+DLUNEMP <- diff(LUNEMP)
+DLM2 <- diff(LM2)
+DLOIL <- diff(LOIL)
+
+##I(0) variables have been created above
+
+dy <- cbind(DLCPI,DLNASDAQ,DLUNEMP,DLM2,DLOIL) # variables I(0)
+y <- cbind(LCPI,LNASDAQ,LUNEMP,LM2,LOIL) # variables I(1)
+
+
+#select the number of lags
+VARselect(dy, lag.max=12, type="const") # irrelated to the frequency
+# select 12 lags based on SC criteria (SC = BIC)
+nlags = 12
+
+
+# Johansen VECM procedure 
+
+vecm1 <- ca.jo(y, ecdet = "const", type="eigen", K=nlags, spec="longrun",
+               season=12) # insert season = 4 for quarterly data
+summary(vecm1)
+# we have more than one cointegrating variables which is needed.
+
+# cointegrating relationships - Johansen
+k = dim(as.matrix(y))[2]
+cointv <- vecm1@V
+cointj <- cointv[,1]
+yym <- as.matrix(y)
+ecmj <- yym%*%cointj[1:k] + cointj[k+1] 
+
+intord(ecmj)
+###Residuals are I(0)
+
+#engle granger ecm
+c1 <- dynlm( LCPI~ LNASDAQ + LUNEMP + LM2 + LOIL) 
+#c2 <- dynlm( DLUNEMP~ DLNASDAQ +DLCPI  + DLM2 + DLOIL) 
+#c3 <- dynlm( DLM2~ DLNASDAQ + DLUNEMP + DLCPI + DLOIL) 
+
+
+summary(c1)
+ecm <- c1$residuals
+par(mar=c(2,2,2,2))
+intord(ecm)
+
+# set the ECM term at t-1 for the Engle Granger method
+eceg <- embed(ecm,2) # create a lag
+ecmeg <- eceg[,2] # take the first lag
+
+# VECM with Johansen ecm term
+# set the ECM term at t-1 for the Johansen method
+ecj <- embed(ecmj,2) # create a lag
+ecmj1 <- ecj[,2]
+
+# Engle Granger VECM
+var3 <- VAR(dy, p=12, type="const",exogen=ecmeg,season=12) # replace const with trend if needed
+summary(var3)
+
+# BoX-Ljung Q Statistic for DLCPI 
+
+resi = var3$varresult$DLCPI$residuals
+b = Box.test(resi,lag = 20, type="Ljung-Box")
+b
+
+blt = rep(0,20)
+for (i in 1:20){
+  b = Box.test(resi,lag = i, type="Ljung-Box")
+  blt[i]=b$p.value
+}
+blt
+
+#BoX-Ljung Q Statistic for DLNASDAQ 
+
+resi = var3$varresult$DLNASDAQ$residuals
+b = Box.test(resi,lag = 20, type="Ljung-Box")
+b
+
+blt = rep(0,20)
+for (i in 1:20){
+  b = Box.test(resi,lag = i, type="Ljung-Box")
+  blt[i]=b$p.value
+}
+blt
+
+#BoX-Ljung Q Statistic for DLUNEMP 
+
+resi = var3$varresult$DLUNEMP$residuals
+b = Box.test(resi,lag = 20, type="Ljung-Box")
+b
+
+blt = rep(0,20)
+for (i in 1:20){
+  b = Box.test(resi,lag = i, type="Ljung-Box")
+  blt[i]=b$p.value
+}
+blt
+
+
+#BoX-Ljung Q Statistic for DLM2 
+
+resi = var3$varresult$DLM2$residuals
+b = Box.test(resi,lag = 20, type="Ljung-Box")
+b
+
+blt = rep(0,20)
+for (i in 1:20){
+  b = Box.test(resi,lag = i, type="Ljung-Box")
+  blt[i]=b$p.value
+}
+blt
+
+#BoX-Ljung Q Statistic for DLOIL 
+
+resi = var3$varresult$DLOIL$residuals
+b = Box.test(resi,lag = 20, type="Ljung-Box")
+b
+
+blt = rep(0,20)
+for (i in 1:20){
+  b = Box.test(resi,lag = i, type="Ljung-Box")
+  blt[i]=b$p.value
+}
+blt
+
+
+# Johansen VECM
+var4 <- VAR(dy, p=12, type="const",exo=ecmj1,season=12)
+summary(var4)
+#Johansen VECM has issues hence we wil use Engle Granger ECM in forecasting
+
+dev.off()
+plot(var3, names = "DLCPI")
+
+dev.off()
+plot(var3, names = "DLNASDAQ")
+
+dev.off()
+plot(var3, names = "DLUNEMP")
+
+dev.off()
+plot(var3, names = "DLM2")
+
+dev.off()
+plot(var3, names = "DLOIL")
+
+
+
+# Forecasting with a VECM
+varf <- vec2var(vecm1, r = 1)
+fcast <- predict(varf, n.ahead = 8, ci = 0.95) 
+par(mar=c(2,2,2,2))
+plot(fcast)
+fcast
+
+dev.off()
+par(mar = c(2, 2, 2, 2))
+# plotting forecasts for one variable (LCPI)
+CPIF <- fcast$fcst$LCPI[,1]
+CPIlow <- fcast$fcst$LCPI[,2]
+CPIupp <- fcast$fcst$LCPI[,3]
+
+ff <- cbind(CPIF,CPIlow,CPIupp)
+matplot(ff,col=c(1,2,2),lty=1,lwd=2,type='l', main ="8 months forecast of log CPI")
+
+# plotting forecasts for one variable (LNASDAQ)
+LNASDAQF <- fcast$fcst$LNASDAQ[,1]
+LNASDAQlow <- fcast$fcst$LNASDAQ[,2]
+LNASDAQupp <- fcast$fcst$LNASDAQ[,3]
+
+ff <- cbind(LNASDAQF,LNASDAQlow,LNASDAQupp)
+matplot(ff,col=c(1,2,2),lty=1,lwd=2,type='l', main ="8 months forecast of log NASDAQ")
+
+# plotting forecasts for one variable (LUNEMP)
+LUNEMPF <- fcast$fcst$LUNEMP[,1]
+LUNEMPlow <- fcast$fcst$LUNEMP[,2]
+LUNEMPupp <- fcast$fcst$LUNEMP[,3]
+
+ff <- cbind(LUNEMPF,LUNEMPlow,LUNEMPupp)
+matplot(ff,col=c(1,2,2),lty=1,lwd=2,type='l', main ="8 months forecast of log Unemployment")
+
+# plotting forecasts for one variable (LM2)
+LM2F <- fcast$fcst$LM2[,1]
+LM2low <- fcast$fcst$LM2[,2]
+LM2upp <- fcast$fcst$LM2[,3]
+
+ff <- cbind(LM2F,LM2low,LM2upp)
+matplot(ff,col=c(1,2,2),lty=1,lwd=2,type='l', main ="8 months forecast of log M2")
+
+# plotting forecasts for one variable (Loil)
+LOILF <- fcast$fcst$LOIL[,1]
+LOILlow <- fcast$fcst$LOIL[,2]
+LOILupp <- fcast$fcst$LOIL[,3]
+
+ff <- cbind(LOILF,LOILlow,LOILupp)
+matplot(ff,col=c(1,2,2),lty=1,lwd=2,type='l', main ="8 months forecast of log Oil")
+
+
+###########impulse response function#####################
+irfsp3 <- irf(var3, impulse = "DLCPI", response = c("DLNASDAQ", "DLUNEMP","DLM2","DLOIL"), ci=0.95)
+plot(irfsp3)
+
+irfsp3a <- irf(var3, impulse = "DLCPI", response = c("DLNASDAQ"), ci=0.95)
+plot(irfsp3a)
+
+irfsp3b <- irf(var3, impulse = "DLCPI", response = c("DLUNEMP"), ci=0.95)
+plot(irfsp3b)
+
+irfsp3c <- irf(var3, impulse = "DLCPI", response = c("DLM2"), ci=0.95)
+plot(irfsp3c)
+
+irfsp3d <- irf(var3, impulse = "DLCPI", response = c("DLOIL"), ci=0.95)
+plot(irfsp3d)
+
+####################Unemployment#####################
+#irfsp4 <- irf(var3, impulse ="DLNASDAQ" , response = c("DLCPI", "DLUNEMP","DLM2","DLOIL"), ci=0.95)
+#plot(irfsp4)
+
+irfsp5 <- irf(var3, impulse ="DLUNEMP" , response = c("DLCPI", "DLNASDAQ","DLM2","DLOIL"), ci=0.95)
+plot(irfsp5)
+
+irfsp5a <- irf(var3, impulse ="DLUNEMP" , response = c("DLCPI"), ci=0.95)
+plot(irfsp5a)
+
+irfsp5b <- irf(var3, impulse ="DLUNEMP" , response = c("DLNASDAQ"), ci=0.95)
+plot(irfsp5b)
+
+irfsp5c <- irf(var3, impulse ="DLUNEMP" , response = c("DLM2"), ci=0.95)
+plot(irfsp5c)
+
+irfsp5d <- irf(var3, impulse ="DLUNEMP" , response = c("DLOIL"), ci=0.95)
+plot(irfsp5d)
+
+
+#irfsp6 <- irf(var3, impulse ="DLM2" , response = c("DLCPI", "DLNASDAQ","DLUNEMP","DLOIL"), ci=0.95)
+#plot(irfsp6)
+
+#irfsp7 <- irf(var3, impulse = "DLOIL", response = c("DLCPI", "DLNASDAQ","DLUNEMP","DLM2"), ci=0.95)
+#plot(irfsp7)
+
+# Variance Decompositions (contribution of each variable to predicting a variable)
+par(mfrow=c(5,2))
+vard <- fevd(var3, n.ahead=8)
+vard
+vard$dha
+
+plot(vard,col=1:5)
+
+
+###granger causality#########
+#y <- cbind(LCPI,LNASDAQ,LUNEMP,LM2,LOIL) # variables I(1)
+vecm1 <- ca.jo(y, ecdet = "const", type="eigen", K=nlags, spec="longrun",
+               season=12) # insert season = 4 for quarterly data
+summary(vecm1)
+ve1 <- cajools(vecm1,reg.number=1)
+
+# restricted(dropping LCPI)
+lyr <- cbind(LNASDAQ,LUNEMP,LM2,LOIL)  
+vecmr <- ca.jo(lyr, ecdet = "const", type="eigen", K=nlags, spec="longrun",
+               season=12)
+ve1r <- cajools(vecmr,reg.number=1)  
+
+# Joint F-test for Granger causality
+anova(ve1, ve1r, test="F") 
+
+###hence we can say that LCPI does not Granger causes LCPI
+
+# restricted(dropping LNASDAQ)
+lyr2 <- cbind(LCPI,LUNEMP,LM2,LOIL)  
+vecmr2 <- ca.jo(lyr2, ecdet = "const", type="eigen", K=nlags, spec="longrun",
+               season=12)
+ve2r <- cajools(vecmr2,reg.number=1)  
+
+# Joint F-test for Granger causality
+anova(ve1, ve2r, test="F") 
+###hence LNASDAQ granger causes LCPI
+
+# restricted(dropping LUNEMP)
+lyr3 <- cbind(LCPI,LNASDAQ,LM2,LOIL)  
+vecmr3 <- ca.jo(lyr3, ecdet = "const", type="eigen", K=nlags, spec="longrun",
+                season=12)
+ve3r <- cajools(vecmr3,reg.number=1)  
+
+# Joint F-test for Granger causality
+anova(ve1, ve3r, test="F") 
+###hence LUNEMP granger causes LCPI
+
+# restricted(dropping LM2)
+lyr4 <- cbind(LCPI,LNASDAQ,LUNEMP,LOIL)  
+vecmr4 <- ca.jo(lyr4, ecdet = "const", type="eigen", K=nlags, spec="longrun",
+                season=12)
+ve4r <- cajools(vecmr4,reg.number=1)  
+
+# Joint F-test for Granger causality
+anova(ve1, ve4r, test="F") 
+###hence LM2 granger causes LCPI
+
+# restricted(dropping LOIL)
+lyr5 <- cbind(LCPI,LNASDAQ,LUNEMP,LM2)  
+vecmr5 <- ca.jo(lyr5, ecdet = "const", type="eigen", K=nlags, spec="longrun",
+                season=12)
+ve5r <- cajools(vecmr5,reg.number=1)  
+
+# Joint F-test for Granger causality
+anova(ve1, ve5r, test="F") 
+###hence LOIL granger causes LCPI
+
+##volatility
+Arch1 <- arch.test(varf, lags.multi = 3, multivariate.only = TRUE)
+Arch1
+
+dev.off()
+par(mar = c(3, 3, 3, 3))
+plot(resi)
+plot(resi^2)
